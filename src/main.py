@@ -88,7 +88,7 @@ async def get_stock_info(symbol: str):
         if not stock_id:
             print('[DEBUG] Không tìm thấy stock_id cho symbol:', symbol)
             return None
-        row = await conn.fetchrow('SELECT * FROM post WHERE stock_id=$1', stock_id['stock_id'])
+        row = await conn.fetchrow('SELECT * FROM post WHERE stock_id=$1 ORDER BY created_at DESC LIMIT 1', stock_id['stock_id'])
         print('[DEBUG] row:', row)
     return dict(row) if row else None
 
