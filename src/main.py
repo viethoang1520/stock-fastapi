@@ -65,7 +65,8 @@ intent_agent = Agent(
         'User: "Who is the CEO of VCB?"\nOutput: VCB\n'
         'User: "My customer code is KH001, please check"\nOutput: KH001\n'
         'User: "Tell me a joke"\nOutput: OTHER\n'
-        'User: "How is the market today?"\nOutput: OTHER\n'
+        'User: "How is the market today?"\nOutput: MARKET\n'
+        'User: "Provide me information about the market?"\nOutput: MARKET\n'
     )
 )
 
@@ -95,17 +96,39 @@ async def get_stock_info(symbol: str):
         print('[DEBUG] row:', row)
     return dict(row) if row else None
 
+async def get_market_info():
+    print('[DEBUG] Getting market information')
+    pool = app.state.db_pool
+    async with pool.acquire() as conn:
+        # Query for market-level posts (level = 'MARKET')
+        row = await conn.fetchrow(
+            'SELECT * FROM post WHERE level=$1 ORDER BY created_at DESC LIMIT 1', 
+            'MARKET'
+        )
+        print('[DEBUG] market row:', row)
+    return dict(row) if row else None
+
 @app.post("/chat")
 async def chat(req: ChatRequest):
     # Agent 1: LLM determines intent/symbol
     intent = (await intent_agent.run(req.message)).output.strip()
     print('[DEBUG] intent:', intent)
-    if intent != "OTHER":
+    
+    if intent == "MARKET":
+        # Handle market-related queries
+        info = await get_market_info()
+        if info:
+            return {"answer": f"Market Analysis: {info['content']}"}
+        else:
+            return {"answer": "No market analysis available at the moment."}
+    elif intent != "OTHER":
+        # Handle specific stock queries
         info = await get_stock_info(intent)
         if info:
             return {"answer": f"Information about {intent}: {info['content']}"}
         else:
             return {"answer": f"No information found for symbol {intent}."}
+    
     # Agent 3: LLM answers other questions
     answer = (await qa_agent.run(req.message)).output
     return {"answer": answer}
